@@ -15,6 +15,22 @@ if (!isset($_SERVER['PHP_AUTH_USER'])) {
 $username = $_SERVER['PHP_AUTH_USER'];
 $password = $_SERVER['PHP_AUTH_PW'];
 
+function request( $client,$method,$parameter )
+{
+	echo "<hr />";
+	$client->parameter = $parameter;
+	$client->method = $method;
+	$client->request();
+	$response = json_decode($client->response,true);
+	?><pre><?php print_r($client); ?></pre><?php 
+	if	( $client->status != '200')
+	{
+		echo '<span style="background-color:'.($client->status=='200'?'green':'red').'">HTTP-Status '.$client->status.'</span>';
+	}
+	return $response;
+}
+	
+
 ?>
 
 <html>
@@ -32,37 +48,82 @@ $password = $_SERVER['PHP_AUTH_PW'];
 	$client->path   = $config['server']['path'];
 	$client->type ="application/json";
 	
-	$client->parameter = array();
-	$client->parameter['action']    = 'login';
-	$client->parameter['subaction'] = 'login';
 	
-	$client->method = 'GET';
-	$client->request();
-	
-
-	if	( $client->status != '200')
-	{
-		echo '<span style="background-color:'.($client->status=='200'?'green':'red').'">HTTP-Status '.$client->status.'</span>';
-	}
-	
-	$response = json_decode($client->response,true);
+	$response = request( $client,'GET',
+		array('action'   =>'login',
+		      'subaction'=>'login') );
+		
 	$token = $response['session']['token'];
 	$client->cookie =$response['session']['name'].'='.$response['session']['id'];
-	?><pre><?php print_r($client) ?></pre><hr /><?php 
 	
-	$client->parameter = array();
-	$client->parameter['action']    = 'login';
-	$client->parameter['subaction'] = 'login';
 	
-	$client->method = 'POST';
-	$client->parameter['token'         ] = $token;
-	$client->parameter['dbid'          ] = $config['server']['database'];
-	$client->parameter['login_name'    ] = $username;
-	$client->parameter['login_password'] = $password;
+	$response = request( $client,'POST', array(
+		'action'        => 'login',
+		'subaction'     => 'login',
+		'token'         => $token,
+		'dbid'          => $config['server']['database'],
+		'login_name'    => $username,
+		'login_password'=> $password ) );
+
+	$client->cookie =$response['session']['name'].'='.$response['session']['id'];
+	$token = $response['session']['token'];
 	
-	$client->request();
-	$response = json_decode($client->response,true);
-	?><pre><?php print_r($client); ?></pre><?php 
+	
+	// Ordner laden.
+	$rootfolderid = $config['project']['rootfolderid'];
+	$urlschema    = $config['project']['urlschema'   ];
+	
+	$folderid = $rootfolderid;
+	
+	switch( $urlschema )
+	{
+		case 'flat':
+			$foldernames = array();
+			break;
+		case 'yearly':
+			$foldernames = array( date('Y') );
+			break;
+		case 'monthly':
+			$foldernames = array( date('Y'),date('m') );
+			break;
+		case 'daily':
+		default:
+			$foldernames = array( date('Y'),date('m'),date('d') );
+			break;
+	}
+	
+	foreach( $foldernames as $foldername )
+	{
+		$response = request( $client,'GET', array
+		(
+			'action'        => 'folder',
+			'subaction'     => 'show',
+			'id'            => $folderid
+		) );
+		
+		$nextfolderid = null;
+		foreach( $response['object'] as $objectid=>$object )
+		{
+			if	( $object['name'] == $foldername )
+			{
+				$nextfolderid = $objectid;
+				break;
+			} 
+		}
+		if	( empty($nextfolderid) )
+		{
+			$response = request( $client,'POST', array
+			(
+				'action'        => 'folder',
+				'subaction'     => 'createfolder',
+				'token'         => $token,
+				'name'          => $foldername
+			) );
+			$nextfolderid = $response['objectid'];
+		}
+		$folderid = $nextfolderid;
+	}
+	
 	
 	?>
 	
