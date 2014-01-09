@@ -67,6 +67,14 @@ function request( $client,$method,$parameter )
 
 	$client->cookie =$response['session']['name'].'='.$response['session']['id'];
 	$token = $response['session']['token'];
+
+	
+	// PRojekt auswählen
+	$response = request( $client,'POST', array(
+			'action'        => 'start',
+			'subaction'     => 'projectmenu',
+			'token'         => $token,
+			'id'            => $config['project']['projectid']) );
 	
 	
 	// Ordner laden.
@@ -97,12 +105,13 @@ function request( $client,$method,$parameter )
 		$response = request( $client,'GET', array
 		(
 			'action'        => 'folder',
-			'subaction'     => 'show',
+			'subaction'     => 'edit',
 			'id'            => $folderid
 		) );
-		
+
+		// Prüfen, ob der nächste Unterordner bereits existiert.
 		$nextfolderid = null;
-		foreach( $response['object'] as $objectid=>$object )
+		foreach( $response['output']['object'] as $objectid=>$object )
 		{
 			if	( $object['name'] == $foldername )
 			{
@@ -112,14 +121,16 @@ function request( $client,$method,$parameter )
 		}
 		if	( empty($nextfolderid) )
 		{
-			$response = request( $client,'POST', array
+			// Der nächste Unterordner existiert noch nicht, also müssen wir diesen anlegen.
+			$responseCreate = request( $client,'POST', array
 			(
 				'action'        => 'folder',
 				'subaction'     => 'createfolder',
+				'id'            => $folderid,
 				'token'         => $token,
 				'name'          => $foldername
 			) );
-			$nextfolderid = $response['objectid'];
+			$nextfolderid = $responseCreate['output']['objectid'];
 		}
 		$folderid = $nextfolderid;
 	}
@@ -135,7 +146,7 @@ function request( $client,$method,$parameter )
 		'name'          => $_POST['title'],
 		'filename'      => $_POST['title']
 	) );
-	$pageobjectid = $response['objectid'];
+	$pageobjectid = $response['output']['objectid'];
 	
 	/*
 	 * 
@@ -159,6 +170,7 @@ function request( $client,$method,$parameter )
 		'id'            => $pageobjectid,
 		'elementid'     => $config['project']['elementid_text'],
 		'token'         => $token,
+		'release'       => '1',
 		'text'          => $_POST['text']
 	) );
 	
