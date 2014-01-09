@@ -124,6 +124,43 @@ function request( $client,$method,$parameter )
 		$folderid = $nextfolderid;
 	}
 	
+	// Seite anlegen.
+	$response = request( $client,'POST', array
+	(
+		'action'        => 'folder',
+		'subaction'     => 'createpage',
+		'id'            => $folderid,
+		'templateid'    => $config['project']['templateid'],
+		'token'         => $token,
+		'name'          => $_POST['title'],
+		'filename'      => $_POST['title']
+	) );
+	$pageobjectid = $response['objectid'];
+	
+	/*
+	 * 
+	// Ggf. Datei anlegen.
+	$response = request( $client,'POST', array
+	(
+		'action'        => 'folder',
+		'subaction'     => 'createfile',
+		'token'         => $token,
+		'name'          => $title,
+		'filename'      => $title
+	) );
+	$pageobjectid = $response['objectid'];
+	 */
+	
+	// Text speichern anlegen.
+	$response = request( $client,'POST', array
+	(
+		'action'        => 'pageelement',
+		'subaction'     => 'edit',
+		'id'            => $pageobjectid,
+		'elementid'     => $config['project']['elementid_text'],
+		'token'         => $token,
+		'text'          => $_POST['text']
+	) );
 	
 	?>
 	
