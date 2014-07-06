@@ -1,3 +1,6 @@
 syntax: glob
 .settings
 .buildpath
+blogs/*
+profiles/config-bautagebuch.ini
+profiles/config-blog-jandankert.de.ini
