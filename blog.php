@@ -13,13 +13,16 @@ if ($dh = opendir('./profiles'))
 					continue;
 			
 			$blogger = new Blogger();
-			if	( $config['debug'] ) echo "<h2>Profile: $file</h2>";
+			if	( $config['debug'] ) echo "<h1>Profile: $file</h1>";
 			
 			$blogger->config = $config;
 			$blogger->debug = $config['debug'];
 			
+			echo "<h2>Step 1: Pulling</h2>";
 			$blogger->pull();
+			echo "<h2>Step 2: CMS</h2>";
 			$blogger->pushToCMS();
+			echo "<h2>Step 3: Networks</h2>";
 			$blogger->pushToNetwork();
 		}
 	}
@@ -153,7 +156,7 @@ class Blogger {
 					$className = substr($file,0,strlen($file)-10);
 	
 					if	( $this->debug )
-						echo "Network-Plugin: "+$className;
+						echo "<h3>Network-Plugin: ".$className.'</h3>';
 	
 					if	( isset($this->config[strtolower($className)] ))
 					{
