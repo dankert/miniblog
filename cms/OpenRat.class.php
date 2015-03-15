@@ -11,6 +11,7 @@ class OpenRat {
 	public $shortUrl;
 	public $path;
 	public $debug = true;
+	public $timestamp;
 	public $config;
 	
 	private $client;
@@ -25,12 +26,8 @@ class OpenRat {
 		if	( $this->client->status != '200' || $this->debug)
 		{
 			echo '<span style="background-color:'.($this->client->status=='200'?'green':'red').'">HTTP-Status '.$this->client->status.'</span>';
-		}
-		
-		if	( $this->debug )
-		{
 			echo "<h4>".$parameter['action'].'/'.$parameter['subaction'].'</h4>';
-			?><pre><?php print_r($this->client); ?></pre><?php
+			?><pre><?php print_r(""); ?></pre><pre><?php print_r($this->client->response); ?></pre><?php
 		}
 				
 		$response = json_decode($this->client->response,true);
@@ -47,22 +44,11 @@ class OpenRat {
 	
 	public function push()
 	{
+		$filesToPublish   = array();
+		$objectsToPublish = explode(',',$this->config['publish']);
 		require_once('./cms/openrat/OpenratClient.php');
 		$this->client = new OpenratClient();
 
-		/*
-		 * 
-		if (!isset($_SERVER['PHP_AUTH_USER'])) {
-			header('WWW-Authenticate: Basic realm="Blog Upload"');
-			header('HTTP/1.0 401 Unauthorized');
-			echo 'sorry, authentication required to blog something';
-			exit;
-		}
-		 */
-
-		$username = $this->config['user'];
-		$password = $this->config['password'];
-	
 		$this->client->host   = $this->config['host'];
 		$this->client->port   = $this->config['port'];
 		$this->client->path   = $this->config['path'];
@@ -82,14 +68,14 @@ class OpenRat {
 			'subaction'     => 'login',
 			'token'         => $token,
 			'dbid'          => $this->config['database'],
-			'login_name'    => $username,
-			'login_password'=> $password ) );
+			'login_name'    => $this->config['user'    ],
+			'login_password'=> $this->config['password'] ) );
 	
 		$this->client->cookie =$response['session']['name'].'='.$response['session']['id'];
 		$token = $response['session']['token'];
 	
 		
-		// PRojekt auswählen
+		// Projekt auswählen
 		$response = $this->request( 'POST', array(
 				'action'        => 'start',
 				'subaction'     => 'projectmenu',
@@ -100,9 +86,11 @@ class OpenRat {
 		// Ordner laden.
 		$rootfolderid = $this->config['rootfolderid'];
 		$folderid = $rootfolderid;
-		
+
+		$depth = 0;
 		foreach( $this->path as $foldername )
 		{
+			$depth++;
 			$response = $this->request( 'GET', array
 			(
 				'action'        => 'folder',
@@ -132,22 +120,40 @@ class OpenRat {
 					'name'          => $foldername
 				) );
 				$nextfolderid = $responseCreate['output']['objectid'];
+				
+				// Seite anlegen.
+				if	( $depth < count($this->path) )
+				{
+					$response = $this->request( 'POST', array
+							(
+									'action'        => 'folder',
+									'subaction'     => 'createpage',
+									'id'            => $nextfolderid,
+									'templateid'    => $this->config['templateid'],
+									'token'         => $token,
+									'name'          => $foldername,
+									'filename'      => 'index'
+							) );
+					$pageobjectid = $response['output']['objectid'];
+					
+					$objectsToPublish[] = $pageobjectid;
+				}
 			}
 			$folderid = $nextfolderid;
 		}
 
-		// Ein Unterordner pro Blogeintrag.
+		// Ein Unterordner für die Anlagen
 		$responseCreate = $this->request( 'POST', array
 				(
 						'action'        => 'folder',
 						'subaction'     => 'createfolder',
 						'id'            => $folderid,
 						'token'         => $token,
-						'name'          => $this->filename
+						'name'          => 'attachments-'.$this->filename
 				) );
-		$folderid = $responseCreate['output']['objectid'];
+		$attachment_folderid = $responseCreate['output']['objectid'];
 		
-		// Seite anlegen.
+		// Seite für den Blogeintrag anlegen.
 		$response = $this->request( 'POST', array
 		(
 			'action'        => 'folder',
@@ -156,9 +162,23 @@ class OpenRat {
 			'templateid'    => $this->config['templateid'],
 			'token'         => $token,
 			'name'          => $this->subject,
-			'filename'      => 'index'
+			'filename'      => $this->filename
 		) );
 		$pageobjectid = $response['output']['objectid'];
+
+		$objectsToPublish[] = $pageobjectid;
+		// Timestamp nicht setzen (fraglich, ob die Funktion in der API bleibt)
+// 		$response = $this->request( 'POST', array
+// 				(
+// 						'action'        => 'page',
+// 						'subaction'     => 'prop',
+// 						'id'            => $pageobjectid,
+// 						'name'          => $this->subject,
+// 						'filename'      => 'index',
+// 						'token'         => $token,
+// 						'creationTimestamp' => $this->timestamp
+// 				) );
+		
 		
 		/*
 		 * 
@@ -186,6 +206,30 @@ class OpenRat {
 			'text'          => $this->text
 		) );
 
+		// Ordner für die Bilder speichern
+		$response = $this->request( 'POST', array
+				(
+						'action'        => 'pageelement',
+						'subaction'     => 'edit',
+						'id'            => $pageobjectid,
+						'elementid'     => $this->config['elementid_attachment_folder'],
+						'token'         => $token,
+						'release'       => '1',
+						'linkobjectid'  => $attachment_folderid
+				) );
+		
+		// Datum speichern.
+		$response = $this->request( 'POST', array
+				(
+						'action'        => 'pageelement',
+						'subaction'     => 'edit',
+						'id'            => $pageobjectid,
+						'elementid'     => $this->config['elementid_date'],
+						'token'         => $token,
+						'release'       => '1',
+						'date'          => $this->timestamp
+				) );
+		
 		foreach( $this->filenames as $file ) 
 		{
 			// Datei anlegen.
@@ -193,12 +237,14 @@ class OpenRat {
 					(
 							'action'        => 'folder',
 							'subaction'     => 'createfile',
-							'id'            => $folderid,
+							'id'            => $attachment_folderid,
 							'token'         => $token,
 							'name'          => $file['name'],
-							'filename'      => basename($file['filename'])
+							'filename'      => basename($file['name'])
 					) );
 			$fileobjectid = $response['output']['objectid'];
+			
+			$filesToPublish[] = $fileobjectid;
 			
 			// Datei-Inhalt hochladen.
 			$response = $this->request( 'POST', array
@@ -244,6 +290,21 @@ class OpenRat {
 								'name'          => $keyword
 						) );
 				$keyword_folderid = $responseCreate['output']['objectid'];
+
+				// Seite im neuen Keyword-Ordner anlegen
+				$response = $this->request( 'POST', array
+						(
+								'action'        => 'folder',
+								'subaction'     => 'createpage',
+								'id'            => $folderid,
+								'templateid'    => $this->config['templateid'],
+								'token'         => $token,
+								'name'          => $keyword,
+								'filename'      => 'index'
+						) );
+				$pageobjectid = $response['output']['objectid'];
+					
+				$objectsToPublish[] = $pageobjectid;
 			}
 			
 			$responseCreate = $this->request( 'POST', array
@@ -257,6 +318,29 @@ class OpenRat {
 							'targetobjectid'=> $pageobjectid
 					) );
 
+		}
+
+		// Veröffentlichen der neuen und geänderten Seiten
+		foreach( $objectsToPublish as $objectToPublish )
+		{
+			$response = $this->request( 'POST', array
+			(
+				'action'    => 'page',
+				'subaction' => 'pub',
+				'id'        => $objectToPublish,
+				'token'     => $token
+			) );
+		}
+		// Veröffentlichen der neuen und geänderten Dateien
+		foreach( $filesToPublish as $fileToPublish )
+		{
+			$response = $this->request( 'POST', array
+			(
+				'action'    => 'file',
+				'subaction' => 'pub',
+				'id'        => $fileToPublish,
+				'token'     => $token
+			) );
 		}
 	}
 

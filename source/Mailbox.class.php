@@ -50,7 +50,7 @@ class Mailbox
 				$this->filenames = array();
 				$this->text      = '';
 				$this->html      = '';
-				$subject   = $headers->subject;
+				$subject   = iconv_mime_decode($headers->subject,0,'UTF-8');
 		
 				$s = imap_fetchstructure($inbox,$email_number);
 		
@@ -130,17 +130,17 @@ class Mailbox
 		// PARAMETERS
 		// get all parameters, like charset, filenames of attachments, etc.
 		$params = array();
-		if ($p->parameters)
+		if (@$p->parameters)
 			foreach ($p->parameters as $x)
 			$params[strtolower($x->attribute)] = $x->value;
-		if ($p->dparameters)
+		if (@$p->dparameters)
 			foreach ($p->dparameters as $x)
 			$params[strtolower($x->attribute)] = $x->value;
 	
 		// ATTACHMENT
 		// Any part with a filename is an attachment,
 		// so an attached text file (type 0) is not mistaken as the message.
-		if ($params['filename'] || $params['name']) {
+		if (@$params['filename'] || @$params['name']) {
 			// filename may be given as 'Filename' or 'Name' or both
 			$filename = ($params['filename'])? $params['filename'] : $params['name'];
 			// filename may be encoded, so see imap_mime_header_decode()
@@ -155,13 +155,15 @@ class Mailbox
 	
 		// TEXT
 		if ($p->type==0 && $data) {
+			$charset = $params['charset'];  // assume all parts are same charset
+			$data = iconv($charset,'UTF-8//TRANSLIT',$data);
+			
 			// Messages may be split in different parts because of inline attachments,
 			// so append parts together with blank row.
 			if (strtolower($p->subtype)=='plain')
 				$this->text.= trim($data) ."\n\n";
 			else
 				$this->html.= $data ."<br><br>";
-			$charset = $params['charset'];  // assume all parts are same charset
 		}
 	
 		// EMBEDDED MESSAGE
@@ -174,7 +176,7 @@ class Mailbox
 		}
 	
 		// SUBPART RECURSION
-		if ($p->parts) {
+		if (@$p->parts) {
 			foreach ($p->parts as $partno0=>$p2)
 				$this->getpart($mbox,$mid,$p2,$partno.'.'.($partno0+1));  // 1.2, 1.2.1, etc.
 		}

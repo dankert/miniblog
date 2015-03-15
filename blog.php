@@ -1,34 +1,49 @@
 <?php
 
+header('Content-Type: text/html; charset=utf-8');
 
-if ($dh = opendir('./profiles'))
+?>
+
+<form method="post" action="">
+  <input type="submit" value="Neue Blogeinträge abrufen">
+</form>
+
+<?php
+
+if	( $_SERVER['REQUEST_METHOD'] == 'POST' )
 {
-	while (($file = readdir($dh)) !== false)
-	{
-		if	( substr($file,-4) == '.ini' )
-		{
-			$config = parse_ini_file('./profiles/'.$file,true);
-			
-			if	( !$config['enabled'] )
-					continue;
-			
-			$blogger = new Blogger();
-			if	( $config['debug'] ) echo "<h1>Profile: $file</h1>";
-			
-			$blogger->config = $config;
-			$blogger->debug = $config['debug'];
-			
-			echo "<h2>Step 1: Pulling</h2>";
-			$blogger->pull();
-			echo "<h2>Step 2: CMS</h2>";
-			$blogger->pushToCMS();
-			echo "<h2>Step 3: Networks</h2>";
-			$blogger->pushToNetwork();
-		}
-	}
-	closedir($dh);
-}
 
+	if ($dh = opendir('./profiles'))
+	{
+		while (($file = readdir($dh)) !== false)
+		{
+			if	( substr($file,-4) == '.ini' )
+			{
+				$config = parse_ini_file('./profiles/'.$file,true);
+				
+				if	( !$config['enabled'] )
+						continue;
+				
+				$blogger = new Blogger();
+				if	( $config['debug'] ) echo "<h1>Profile: $file</h1>";
+				
+				$blogger->config = $config;
+				$blogger->debug = $config['debug'];
+				
+				echo "<h2>Step 1: Pulling</h2>";
+				$blogger->pull();
+				flush();
+				echo "<h2>Step 2: CMS</h2>";
+				$blogger->pushToCMS();
+				flush();
+				echo "<h2>Step 3: Networks</h2>";
+				$blogger->pushToNetwork();
+				flush();
+			}
+		}
+		closedir($dh);
+	}
+}
 
 
 class Blogger {
@@ -132,6 +147,7 @@ class Blogger {
 							$cms->filename  = $blog['filename'];
 							$cms->path      = $blog['path'];
 							$cms->keywords  = $blog['keywords'];
+							$cms->timestamp = $blog['timestamp'];
 							$cms->debug     = $this->debug;
 							$cms->push();
 						}
