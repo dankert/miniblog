@@ -5,29 +5,31 @@
 <body>
 
 <?php if ( !empty($_POST['text']) ) {
-	
-	$dirname = './blogs/'.date('Ymd-His');
-	mkdir($dirname);
-	
-	$textfile = fopen($dirname.'/text','w');
-	fwrite($textfile,$_POST['text']);
-	
-	$titlefile = fopen($dirname.'/subject','w');
-	fwrite($titlefile,$_POST['title']);
-	fclose($titlefile);
 
+	require('/home/dankert/Entwicklung/Queue/FileQueue.class.php');
+	
+	$value = array();
+	
+	$value['text'] = $_POST['text'];
+	
+	$value['title'] = $_POST['title'];
+
+	
 	if ( !empty($_FILES['image']) )
 	{
-		$imagenamefile = fopen($dirname.'/image','w');
-		fwrite($imagenamefile,'image-'.$_FILES['image']['name']);
-		fclose($imagenamefile);
-		move_uploaded_file($_FILES['image']['tmp_name'],$dirname.'/image-'.$_FILES['image']['name']);
+		$files = array( $_FILES['image']['tmp_name']);
+		$value['files'] = array('filename'=>$_FILES['image']['tmp_name'],'name'=>$_FILES['image']['name'],'content'=>base64_encode(file_get_contents($_FILES['image']['tmp_name'])));
+// 		$files = array( $_FILES['image']['tmp_name'],$_FILES['image']['name']);
 	}
 	
-	$okfile = fopen($dirname.'/OK','w');
-	fwrite($okfile,'');
-	fclose($okfile);
+	$queue = new FileQueue();
+	$queue->directory = './queue/fileupload';
 	
+	$entry  = new QueueEntry();
+	$entry->files = $files;
+	$entry->value = $value;
+	
+	$entry->push();
 	
 	?>
 	<h3>Saved!</h3><a href="blog.php">Start push to server now...</a><?php }
